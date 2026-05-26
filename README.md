@@ -9,6 +9,10 @@ Automated PostgreSQL backups in Docker with rotating retention, Telegram notific
 
 Supports multiple databases, cluster-wide dumps (`pg_dumpall`), table exclusion, disk space checks, backup verification, webhook integrations, and Docker secrets. Available for **linux/amd64**, **linux/arm64**, **linux/arm/v7**, **linux/s390x**, and **linux/ppc64le** in both Debian and Alpine variants.
 
+### 🆕 Large Files Support (>50MB)
+
+Send backup files **up to 2GB** to Telegram using a self-hosted Bot API server. Just set `TELEGRAM_API_URL` to your Bot API endpoint. See [Large Files Guide](docs/LARGE_FILES.md) for setup instructions.
+
 ---
 
 ## Quick Start
@@ -101,11 +105,12 @@ Docker secrets alternatives: `POSTGRES_USER_FILE`, `POSTGRES_PASSWORD_FILE`, `PO
 | `TELEGRAM_CHAT_ID` | | Chat ID (get it from [@userinfobot](https://t.me/userinfobot)) |
 | `TELEGRAM_THREAD_ID` | `""` | Message thread ID for supergroup topics |
 | `TELEGRAM_NOTIFY_ON` | `all` | When to send notifications: `all`, `failure`, `success`, `none` |
+| `TELEGRAM_API_URL` | `https://api.telegram.org` | Custom Bot API server URL for large files (>50MB) |
 | `PROJECT_NAME` | `""` | Label included in Telegram captions and alerts |
 
 Docker secrets alternatives: `TELEGRAM_BOT_TOKEN_FILE`, `TELEGRAM_CHAT_ID_FILE`.
 
-Backup files under 50 MB are sent as documents to the configured chat. Files exceeding the Telegram limit are reported with a text alert instead.
+Backup files under 50 MB are sent as documents to the configured chat. For **files larger than 50MB**, use a [self-hosted Telegram Bot API server](docs/LARGE_FILES.md) by setting `TELEGRAM_API_URL` — this supports files up to **2GB**.
 
 ### Webhooks
 
@@ -376,6 +381,39 @@ mkdir -p /var/opt/pgbackups && chown -R 999:999 /var/opt/pgbackups
 # Alpine-based image (UID 70)
 mkdir -p /var/opt/pgbackups && chown -R 70:70 /var/opt/pgbackups
 ```
+
+---
+
+## Large Files (>50MB)
+
+To send backups larger than 50MB to Telegram, deploy a self-hosted Bot API server:
+
+```yaml
+services:
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    environment:
+      TELEGRAM_API_ID: "${TELEGRAM_API_ID}"      # from https://my.telegram.org/apps
+      TELEGRAM_API_HASH: "${TELEGRAM_API_HASH}"
+      TELEGRAM_LOCAL: "true"
+    ports:
+      - "8081:8081"
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+
+  backup:
+    image: ganiyevuz/postgres-backup-telegram:17
+    environment:
+      TELEGRAM_API_URL: "http://telegram-bot-api:8081"  # ← Enable large files
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
+      # ... other settings
+
+volumes:
+  telegram-bot-api-data:
+```
+
+This setup supports files **up to 2GB**. See the complete example in [`examples/docker-compose.large-files.yml`](examples/docker-compose.large-files.yml) and [Large Files Guide](docs/LARGE_FILES.md).
 
 ---
 
